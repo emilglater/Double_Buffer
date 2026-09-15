@@ -73,6 +73,11 @@ LDLIBS := -lm -pthread
 
 # ------------------------------ CPPCheck config ----------------------------- #
 
+# Python 3.14 warns that codecs.open() is deprecated. cppcheck's misra.py
+# still uses it, and cppcheck reads the addon's stderr as findings, so the
+# warning gets reported as a critical error and fails the lint stage.
+export PYTHONWARNINGS=ignore::DeprecationWarning
+
 # Number of threads to be used by CPPCheck.
 CPPCHECK_THREADS := 1
 
