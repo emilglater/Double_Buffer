@@ -87,6 +87,12 @@ CPPCHECK_FLAGS += --error-exitcode=1
 CPPCHECK_FLAGS += --suppress=missingIncludeSystem
 CPPCHECK_FLAGS += --suppress=unmatchedSuppression
 CPPCHECK_FLAGS += --suppress=misra-c2012-21.6
+# MISRA C:2012 Rule 19.2 (advisory) discourages unions. Deviated deliberately:
+# We want to use a union whose members share a common initial header
+# sequence, which C explicitly permits reading through any member. The
+# alternative is a byte array plus manual serialization, which would remove
+# all compile-time type checking.
+CPPCHECK_FLAGS += --suppress=misra-c2012-19.2
 CPPCHECK_FLAGS += --inline-suppr
 CPPCHECK_FLAGS += -I$(INCLUDE_DIR)
 CPPCHECK_FLAGS += --cppcheck-build-dir=$(CPPCHECK_CACHE)
