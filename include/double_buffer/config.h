@@ -1,9 +1,9 @@
-#ifndef CONFIG_H
-#define CONFIG_H
+#ifndef DOUBLE_BUFFER_CONFIG_H
+#define DOUBLE_BUFFER_CONFIG_H
 
 #include <stdint.h>
 
-#define DOUBLE_BUFFER_BLOB_SIZE 48  // needs to be a multiple of 12 for padding
+#define DOUBLE_BUFFER_BLOB_SIZE (32U)  // needs to be a multiple of 4
 
 typedef enum
 {

@@ -93,6 +93,9 @@ CPPCHECK_FLAGS += --suppress=misra-c2012-21.6
 # alternative is a byte array plus manual serialization, which would remove
 # all compile-time type checking.
 CPPCHECK_FLAGS += --suppress=misra-c2012-19.2
+# MISRA C:2012 Rule 15.5 (advisory) discourages unions. Deviated deliberately:
+# We use guard clauses that are easier to read then nested if/else-if statements.
+CPPCHECK_FLAGS += --suppress=misra-c2012-15.5
 CPPCHECK_FLAGS += --inline-suppr
 CPPCHECK_FLAGS += -I$(INCLUDE_DIR)
 CPPCHECK_FLAGS += --cppcheck-build-dir=$(CPPCHECK_CACHE)
