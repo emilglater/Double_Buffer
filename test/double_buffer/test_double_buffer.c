@@ -25,12 +25,12 @@ void test_header_is_first_in_payload(void)
     TEST_ASSERT_EQUAL_size_t(0U, offsetof(double_buffer_blob_t, header));
 }
 
-void test_slot_holds_larget_payload(void)
+void test_slot_holds_largest_payload(void)
 {
     TEST_ASSERT_TRUE(sizeof(double_buffer_slot_u) >= sizeof(double_buffer_blob_t));
 }
 
-void test_kind_readble_through_any_member(void)
+void test_kind_readable_through_any_member(void)
 {
     double_buffer_slot_u slot;
 
@@ -145,4 +145,64 @@ void test_null_arguments_are_rejected(void)
     TEST_ASSERT_EQUAL_INT(DOUBLE_BUFFER_ERROR_NULL, status);
     status = double_buffer_read(&g_double_buffer, NULL);
     TEST_ASSERT_EQUAL_INT(DOUBLE_BUFFER_ERROR_NULL, status);
+}
+
+void test_index_swap(void)
+{
+    double_buffer_slot_u* p_first = NULL;
+    double_buffer_slot_u* p_second = NULL;
+    double_buffer_slot_u* p_third = NULL;
+    double_buffer_status_e status = DOUBLE_BUFFER_OK;
+
+
+    status = double_buffer_acquire_write(&g_double_buffer, &p_first);
+    TEST_ASSERT_EQUAL_INT(DOUBLE_BUFFER_OK, status);
+
+    status = double_buffer_commit(&g_double_buffer);
+    TEST_ASSERT_EQUAL_INT(DOUBLE_BUFFER_OK, status);
+
+    status = double_buffer_acquire_write(&g_double_buffer, &p_second);
+    TEST_ASSERT_EQUAL_INT(DOUBLE_BUFFER_OK, status);
+
+    TEST_ASSERT_NOT_EQUAL(p_first, p_second);
+
+    status = double_buffer_commit(&g_double_buffer);
+    TEST_ASSERT_EQUAL_INT(DOUBLE_BUFFER_OK, status);
+
+    status = double_buffer_acquire_write(&g_double_buffer, &p_third);
+    TEST_ASSERT_EQUAL_INT(DOUBLE_BUFFER_OK, status);
+
+    TEST_ASSERT_EQUAL(p_first, p_third);
+}
+
+void test_double_buffer_property(void)
+{
+    const float first_value = 24.5F;
+    const float second_value = 42.9F;
+
+    double_buffer_slot_u* p_slot = NULL;
+    double_buffer_slot_u out = { 0 };
+    double_buffer_status_e status = DOUBLE_BUFFER_OK;
+
+    status = double_buffer_acquire_write(&g_double_buffer, &p_slot);
+    TEST_ASSERT_EQUAL_INT(DOUBLE_BUFFER_OK, status);
+
+    p_slot->scalar.header.kind = (uint16_t)DOUBLE_BUFFER_KIND_SCALAR;
+    p_slot->scalar.value = first_value;
+
+    status = double_buffer_commit(&g_double_buffer);
+    TEST_ASSERT_EQUAL_INT(DOUBLE_BUFFER_OK, status);
+
+    status = double_buffer_acquire_write(&g_double_buffer, &p_slot);
+    TEST_ASSERT_EQUAL_INT(DOUBLE_BUFFER_OK, status);
+
+    p_slot->scalar.header.kind = (uint16_t)DOUBLE_BUFFER_KIND_SCALAR;
+    p_slot->scalar.value = second_value;
+
+    status = double_buffer_read(&g_double_buffer, &out);
+    TEST_ASSERT_EQUAL_INT(DOUBLE_BUFFER_OK, status);
+
+    TEST_ASSERT_EQUAL_FLOAT(first_value, out.scalar.value);
+    TEST_ASSERT_NOT_EQUAL_FLOAT(second_value, out.scalar.value);
+    TEST_ASSERT_EQUAL_UINT32(0U, out.header.sequence_number);
 }

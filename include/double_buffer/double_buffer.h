@@ -15,10 +15,12 @@ typedef enum
 
 typedef struct
 {
-    double_buffer_slot_u    slot;
+    double_buffer_slot_u    slots[2];
     uint32_t                next_sequence_number;
     bool                    has_new_data;
-    uint8_t                 reserved[3];
+    uint8_t                 write_index;
+    uint8_t                 read_index;
+    uint8_t                 reserved;
 } double_buffer_t;
 
 double_buffer_status_e double_buffer_init(double_buffer_t* p_buffer);
