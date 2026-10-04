@@ -9,6 +9,21 @@ TEST_SOURCE_FILE("src/double_buffer/double_buffer.c")
 
 static double_buffer_t g_double_buffer = { 0 };
 
+static void publish_scalar(float value)
+{
+    double_buffer_slot_u* p_slot = NULL;
+    double_buffer_status_e status = DOUBLE_BUFFER_OK;
+
+    status = double_buffer_acquire_write(&g_double_buffer, &p_slot);
+    TEST_ASSERT_EQUAL_INT(DOUBLE_BUFFER_OK, status);
+
+    p_slot->scalar.header.kind = (uint16_t)DOUBLE_BUFFER_KIND_SCALAR;
+    p_slot->scalar.value = value;
+
+    status = double_buffer_commit(&g_double_buffer);
+    TEST_ASSERT_EQUAL_INT(DOUBLE_BUFFER_OK, status);
+}
+
 void setUp(void)
 {
     (void)double_buffer_init(&g_double_buffer);
@@ -184,14 +199,7 @@ void test_double_buffer_property(void)
     double_buffer_slot_u out = { 0 };
     double_buffer_status_e status = DOUBLE_BUFFER_OK;
 
-    status = double_buffer_acquire_write(&g_double_buffer, &p_slot);
-    TEST_ASSERT_EQUAL_INT(DOUBLE_BUFFER_OK, status);
-
-    p_slot->scalar.header.kind = (uint16_t)DOUBLE_BUFFER_KIND_SCALAR;
-    p_slot->scalar.value = first_value;
-
-    status = double_buffer_commit(&g_double_buffer);
-    TEST_ASSERT_EQUAL_INT(DOUBLE_BUFFER_OK, status);
+    publish_scalar(first_value);
 
     status = double_buffer_acquire_write(&g_double_buffer, &p_slot);
     TEST_ASSERT_EQUAL_INT(DOUBLE_BUFFER_OK, status);
@@ -205,4 +213,46 @@ void test_double_buffer_property(void)
     TEST_ASSERT_EQUAL_FLOAT(first_value, out.scalar.value);
     TEST_ASSERT_NOT_EQUAL_FLOAT(second_value, out.scalar.value);
     TEST_ASSERT_EQUAL_UINT32(0U, out.header.sequence_number);
+}
+
+void test_drop_oldest_record(void)
+{
+    const float first_value = 24.5F;
+    const float second_value = 42.9F;
+
+    double_buffer_slot_u out = { 0 };
+    double_buffer_status_e status = DOUBLE_BUFFER_OK;
+
+    publish_scalar(first_value);
+    publish_scalar(second_value);
+
+    status = double_buffer_read(&g_double_buffer, &out);
+    TEST_ASSERT_EQUAL_INT(DOUBLE_BUFFER_OK, status);
+
+    TEST_ASSERT_NOT_EQUAL_FLOAT(first_value, out.scalar.value);
+    TEST_ASSERT_EQUAL_FLOAT(second_value, out.scalar.value);
+    TEST_ASSERT_EQUAL_UINT32(1U, out.header.sequence_number);
+}
+
+void test_no_queueing_for_records(void)
+{
+    const float first_value = 24.5F;
+    const float second_value = 42.9F;
+    const float third_value = 32.1F;
+
+    double_buffer_slot_u out = { 0 };
+    double_buffer_status_e status = DOUBLE_BUFFER_OK;
+
+    publish_scalar(first_value);
+    publish_scalar(second_value);
+    publish_scalar(third_value);
+
+    status = double_buffer_read(&g_double_buffer, &out);
+    TEST_ASSERT_EQUAL_INT(DOUBLE_BUFFER_OK, status);
+
+    TEST_ASSERT_EQUAL_FLOAT(third_value, out.scalar.value);
+    TEST_ASSERT_EQUAL_UINT32(2U, out.header.sequence_number);
+
+    status = double_buffer_read(&g_double_buffer, &out);
+    TEST_ASSERT_EQUAL_INT(DOUBLE_BUFFER_NO_NEW_DATA, status);
 }
