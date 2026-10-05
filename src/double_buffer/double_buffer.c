@@ -15,12 +15,13 @@ double_buffer_status_e double_buffer_init(double_buffer_t* p_buffer)
     p_buffer->has_new_data = false;
     p_buffer->write_index = 0;
     p_buffer->read_index = 1;
+    (void)memset(&p_buffer->callbacks, 0, sizeof(p_buffer->callbacks));
 
     return DOUBLE_BUFFER_OK;
 }
 
 double_buffer_status_e double_buffer_acquire_write(double_buffer_t* p_buffer,
-                                                    double_buffer_slot_u** pp_out)
+    double_buffer_slot_u** pp_out)
 {
     if((p_buffer == NULL) || (pp_out == NULL))
     {
@@ -46,11 +47,16 @@ double_buffer_status_e double_buffer_commit(double_buffer_t* p_buffer)
     p_buffer->read_index = write_index;
     p_buffer->has_new_data = true;
 
+    if(p_buffer->callbacks.on_data_ready != NULL)
+    {
+        p_buffer->callbacks.on_data_ready(p_buffer->callbacks.p_user_data);
+    }
+
     return DOUBLE_BUFFER_OK;
 }
 
 double_buffer_status_e double_buffer_read(double_buffer_t* p_buffer,
-                                            double_buffer_slot_u* p_out)
+    double_buffer_slot_u* p_out)
 {
     if((p_buffer == NULL) || (p_out == NULL))
     {
@@ -64,6 +70,19 @@ double_buffer_status_e double_buffer_read(double_buffer_t* p_buffer,
     uint8_t read_index = p_buffer->read_index;
     *p_out = p_buffer->slots[read_index];
     p_buffer->has_new_data = false;
+
+    return DOUBLE_BUFFER_OK;
+}
+
+double_buffer_status_e double_buffer_set_callbacks(double_buffer_t* p_buffer,
+    const double_buffer_callbacks_t* p_callbacks)
+{
+    if((p_buffer == NULL) || (p_callbacks == NULL))
+    {
+        return DOUBLE_BUFFER_ERROR_NULL;
+    }
+
+    p_buffer->callbacks = *p_callbacks;
 
     return DOUBLE_BUFFER_OK;
 }

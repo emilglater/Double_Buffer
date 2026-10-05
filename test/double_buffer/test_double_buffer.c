@@ -7,26 +7,43 @@
 
 TEST_SOURCE_FILE("src/double_buffer/double_buffer.c")
 
+typedef struct
+{
+    uint16_t    invoke_count;
+} callback_record_t;
+
 static double_buffer_t g_double_buffer = { 0 };
+static callback_record_t g_callback_record = { 0 };
 
 static void publish_scalar(float value)
 {
     double_buffer_slot_u* p_slot = NULL;
     double_buffer_status_e status = DOUBLE_BUFFER_OK;
-
+    
     status = double_buffer_acquire_write(&g_double_buffer, &p_slot);
     TEST_ASSERT_EQUAL_INT(DOUBLE_BUFFER_OK, status);
-
+    
     p_slot->scalar.header.kind = (uint16_t)DOUBLE_BUFFER_KIND_SCALAR;
     p_slot->scalar.value = value;
-
+    
     status = double_buffer_commit(&g_double_buffer);
     TEST_ASSERT_EQUAL_INT(DOUBLE_BUFFER_OK, status);
+}
+
+static void on_data_ready_mock(void* p_user_data)
+{
+    callback_record_t* p_record = (callback_record_t*)p_user_data;
+
+    if(p_record != NULL)
+    {
+        p_record->invoke_count++;
+    }
 }
 
 void setUp(void)
 {
     (void)double_buffer_init(&g_double_buffer);
+    g_callback_record.invoke_count = 0;
 }
 
 void tearDown(void)
@@ -255,4 +272,9 @@ void test_no_queueing_for_records(void)
 
     status = double_buffer_read(&g_double_buffer, &out);
     TEST_ASSERT_EQUAL_INT(DOUBLE_BUFFER_NO_NEW_DATA, status);
+}
+
+void test_callback_fired_every_commit(void)
+{
+    (void)on_data_ready_mock(&g_callback_record);
 }
