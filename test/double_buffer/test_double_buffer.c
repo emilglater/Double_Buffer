@@ -40,6 +40,19 @@ static void on_data_ready_mock(void* p_user_data)
     }
 }
 
+static void register_mock_callbacks()
+{
+    const double_buffer_callbacks_t callbacks =
+    {
+        .on_data_ready = on_data_ready_mock,
+        .p_user_data = &g_callback_record
+    };
+    double_buffer_status_e status = DOUBLE_BUFFER_OK;
+
+    status = double_buffer_set_callbacks(&g_double_buffer, &callbacks);
+    TEST_ASSERT_EQUAL_INT(DOUBLE_BUFFER_OK, status);
+}
+
 void setUp(void)
 {
     (void)double_buffer_init(&g_double_buffer);
@@ -177,6 +190,10 @@ void test_null_arguments_are_rejected(void)
     TEST_ASSERT_EQUAL_INT(DOUBLE_BUFFER_ERROR_NULL, status);
     status = double_buffer_read(&g_double_buffer, NULL);
     TEST_ASSERT_EQUAL_INT(DOUBLE_BUFFER_ERROR_NULL, status);
+    status = double_buffer_set_callbacks(NULL, &g_double_buffer.callbacks);
+    TEST_ASSERT_EQUAL_INT(DOUBLE_BUFFER_ERROR_NULL, status);
+    status = double_buffer_set_callbacks(&g_double_buffer, NULL);
+    TEST_ASSERT_EQUAL_INT(DOUBLE_BUFFER_ERROR_NULL, status);
 }
 
 void test_index_swap(void)
@@ -276,5 +293,54 @@ void test_no_queueing_for_records(void)
 
 void test_callback_fired_every_commit(void)
 {
-    (void)on_data_ready_mock(&g_callback_record);
+    register_mock_callbacks();
+
+    publish_scalar(24.5F);
+    TEST_ASSERT_EQUAL_UINT16(1U, g_callback_record.invoke_count);
+
+    publish_scalar(42.9F);
+    TEST_ASSERT_EQUAL_UINT16(2U, g_callback_record.invoke_count);
+}
+
+void test_verify_callback_fired_only_on_commit(void)
+{
+    double_buffer_slot_u* p_slot = NULL;
+    double_buffer_status_e status = DOUBLE_BUFFER_OK;
+    double_buffer_slot_u out_slot = { 0 };
+
+    register_mock_callbacks();
+
+    // the buffer has been initialized, counter should be untouched
+    TEST_ASSERT_EQUAL_UINT16(0U, g_callback_record.invoke_count);
+    
+    status = double_buffer_acquire_write(&g_double_buffer, &p_slot);
+    TEST_ASSERT_EQUAL_INT(DOUBLE_BUFFER_OK, status);
+
+    TEST_ASSERT_EQUAL_UINT16(0U, g_callback_record.invoke_count);
+    
+    p_slot->scalar.header.kind = (uint16_t)DOUBLE_BUFFER_KIND_SCALAR;
+    p_slot->scalar.value = 24.5F;
+
+    status = double_buffer_commit(&g_double_buffer);
+    TEST_ASSERT_EQUAL_INT(DOUBLE_BUFFER_OK, status);
+
+    TEST_ASSERT_EQUAL_UINT16(1U, g_callback_record.invoke_count);
+
+    status = double_buffer_read(&g_double_buffer, &out_slot);
+    TEST_ASSERT_EQUAL_INT(DOUBLE_BUFFER_OK, status);
+
+    TEST_ASSERT_EQUAL_UINT16(1U, g_callback_record.invoke_count);
+}
+
+void test_init_clears_callbacks(void)
+{
+    double_buffer_status_e status = DOUBLE_BUFFER_OK;
+
+    register_mock_callbacks();
+
+    status = double_buffer_init(&g_double_buffer);
+    TEST_ASSERT_EQUAL_INT(DOUBLE_BUFFER_OK, status);
+
+    publish_scalar(24.5F);
+    TEST_ASSERT_EQUAL_UINT16(0U, g_callback_record.invoke_count);
 }
