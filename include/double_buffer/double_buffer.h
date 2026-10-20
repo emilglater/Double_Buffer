@@ -2,6 +2,7 @@
 #define DOUBLE_BUFFER_H
 
 #include <stdbool.h>
+#include <pthread.h>
 
 #include "double_buffer/config.h"
 
@@ -26,10 +27,11 @@ typedef struct
     double_buffer_slot_u        slots[2];
     uint32_t                    next_sequence_number;
     bool                        has_new_data;
+    bool                        is_initialized;
     uint8_t                     write_index;
     uint8_t                     read_index;
-    uint8_t                     reserved;
     double_buffer_callbacks_t   callbacks;
+    pthread_mutex_t             lock;
 } double_buffer_t;
 
 /**
@@ -43,6 +45,18 @@ typedef struct
  * @retval  DOUBLE_BUFFER_ENRROR_NULL   p_buffer is NULL.
  */
 double_buffer_status_e double_buffer_init(double_buffer_t* p_buffer);
+
+/**
+ * @brief   Deinitialize a double buffer.
+ * 
+ *          For now it just destroys the mutex of the buffer. The buffer is left
+ *          unusable until re-initialized.
+ * @param   p_buffer A pointer to a double_buffer_t.
+ * @returns A value from @ref double_buffer_status_e.
+ * @retval  DOUBLE_BUFFER_OK            Buffer deinitialized successfully.
+ * @retval  DOUBLE_BUFFER_ENRROR_NULL   p_buffer is NULL.
+ */
+double_buffer_status_e double_buffer_deinit(double_buffer_t* p_buffer);
 
 /**
  * @brief   Obtain the slot the producer may write into.

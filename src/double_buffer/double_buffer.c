@@ -10,12 +10,46 @@ double_buffer_status_e double_buffer_init(double_buffer_t* p_buffer)
         return DOUBLE_BUFFER_ERROR_NULL;
     }
 
+    int result = 0;
+
     (void)memset(p_buffer->slots, 0, sizeof(p_buffer->slots));
     p_buffer->next_sequence_number = 0;
     p_buffer->has_new_data = false;
     p_buffer->write_index = 0;
     p_buffer->read_index = 1;
     (void)memset(&p_buffer->callbacks, 0, sizeof(p_buffer->callbacks));
+
+    result = pthread_mutex_init(&p_buffer->lock, NULL);
+    if(result != 0)
+    {
+        return DOUBLE_BUFFER_ERROR_STATE;
+    }
+
+    p_buffer->is_initialized = true;
+
+    return DOUBLE_BUFFER_OK;
+}
+
+double_buffer_status_e double_buffer_deinit(double_buffer_t* p_buffer)
+{
+    if(p_buffer == NULL)
+    {
+        return DOUBLE_BUFFER_ERROR_NULL;
+    }
+
+    int result = 0;
+
+    if(p_buffer->is_initialized)
+    {
+        result = pthread_mutex_destroy(&p_buffer->lock);
+        if(result != 0)
+        {
+            return DOUBLE_BUFFER_ERROR_STATE;
+        }
+    }
+
+
+    p_buffer->is_initialized = false;
 
     return DOUBLE_BUFFER_OK;
 }

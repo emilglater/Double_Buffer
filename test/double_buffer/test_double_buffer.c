@@ -40,7 +40,7 @@ static void on_data_ready_mock(void* p_user_data)
     }
 }
 
-static void register_mock_callbacks()
+static void register_mock_callbacks(void)
 {
     const double_buffer_callbacks_t callbacks =
     {
