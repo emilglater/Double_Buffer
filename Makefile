@@ -104,6 +104,9 @@ CPPCHECK_FLAGS += --platform=$(CPPCHECK_CONFIG)/type_sizes.xml
 CPPCHECK_FLAGS += --language=c
 CPPCHECK_FLAGS += --std=c99
 CPPCHECK_FLAGS += --library=posix.cfg
+# cppcheck's bundled posix.cfg covers the pthread mutex functions but not the
+# condition-variable ones, which makes 17.3 (Mandatory) fire spuriously.
+CPPCHECK_FLAGS += --library=$(CPPCHECK_CONFIG)/pthread_cond.cfg
 CPPCHECK_FLAGS += --enable=all
 CPPCHECK_FLAGS += --safety
 CPPCHECK_FLAGS += --check-level=exhaustive
@@ -139,6 +142,12 @@ lint: | $(CPPCHECK_CACHE)
 # Run Ceedling tests + gcovr coverage tool.
 test:
 	ruby $(CEEDLING) gcov:all
+
+# Run ThreadSanitizer
+tsan:
+	$(CC) -std=c99 -D_GNU_SOURCE -g -fsanitize=thread -pthread \
+	      -I$(INCLUDE_DIR) -o $(BIN_DIR)/tsan.bin $(SRCS)
+	$(BIN_DIR)/tsan.bin
 
 # Build the project binary.
 build: $(BIN_DIR)/$(TARGET)

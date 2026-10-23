@@ -37,11 +37,9 @@ double_buffer_status_e double_buffer_deinit(double_buffer_t* p_buffer)
         return DOUBLE_BUFFER_ERROR_NULL;
     }
 
-    int result = 0;
-
     if(p_buffer->is_initialized)
     {
-        result = pthread_mutex_destroy(&p_buffer->lock);
+        int result = pthread_mutex_destroy(&p_buffer->lock);
         if(result != 0)
         {
             return DOUBLE_BUFFER_ERROR_STATE;
@@ -74,16 +72,26 @@ double_buffer_status_e double_buffer_commit(double_buffer_t* p_buffer)
         return DOUBLE_BUFFER_ERROR_NULL;
     }
 
-    uint8_t write_index = p_buffer->write_index;
+    if(!p_buffer->is_initialized)
+    {
+        return DOUBLE_BUFFER_ERROR_STATE;
+    }
+
+    (void)pthread_mutex_lock(&p_buffer->lock);
+
+    const uint8_t write_index = p_buffer->write_index;
+    const double_buffer_callbacks_t callbacks = p_buffer->callbacks;
     p_buffer->slots[write_index].header.sequence_number = p_buffer->next_sequence_number;
     p_buffer->next_sequence_number++;
     p_buffer->write_index = p_buffer->read_index;
     p_buffer->read_index = write_index;
     p_buffer->has_new_data = true;
 
-    if(p_buffer->callbacks.on_data_ready != NULL)
+    (void)pthread_mutex_unlock(&p_buffer->lock);
+
+    if(callbacks.on_data_ready != NULL)
     {
-        p_buffer->callbacks.on_data_ready(p_buffer->callbacks.p_user_data);
+        callbacks.on_data_ready(callbacks.p_user_data);
     }
 
     return DOUBLE_BUFFER_OK;

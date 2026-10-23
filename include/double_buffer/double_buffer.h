@@ -89,7 +89,7 @@ double_buffer_status_e double_buffer_acquire_write(double_buffer_t* p_buffer,
  * @note    Producer only.
  * 
  *          If the buffer's callbacks.on_data_ready is set, it will be invoked
- *          in this function.
+ *          in this function. 
  */                                                    
 double_buffer_status_e double_buffer_commit(double_buffer_t* p_buffer);
 
