@@ -10,8 +10,6 @@ double_buffer_status_e double_buffer_init(double_buffer_t* p_buffer)
         return DOUBLE_BUFFER_ERROR_NULL;
     }
 
-    int result = 0;
-
     (void)memset(p_buffer->slots, 0, sizeof(p_buffer->slots));
     p_buffer->next_sequence_number = 0;
     p_buffer->has_new_data = false;
@@ -19,10 +17,13 @@ double_buffer_status_e double_buffer_init(double_buffer_t* p_buffer)
     p_buffer->read_index = 1;
     (void)memset(&p_buffer->callbacks, 0, sizeof(p_buffer->callbacks));
 
-    result = pthread_mutex_init(&p_buffer->lock, NULL);
-    if(result != 0)
+    if(!p_buffer->is_initialized)
     {
-        return DOUBLE_BUFFER_ERROR_STATE;
+        int result = pthread_mutex_init(&p_buffer->lock, NULL);
+        if(result != 0)
+        {
+            return DOUBLE_BUFFER_ERROR_STATE;
+        }
     }
 
     p_buffer->is_initialized = true;
@@ -58,6 +59,11 @@ double_buffer_status_e double_buffer_acquire_write(double_buffer_t* p_buffer,
     if((p_buffer == NULL) || (pp_out == NULL))
     {
         return DOUBLE_BUFFER_ERROR_NULL;
+    }
+
+    if(!p_buffer->is_initialized)
+    {
+        return DOUBLE_BUFFER_ERROR_STATE;
     }
 
     uint8_t write_index = p_buffer->write_index;
@@ -104,16 +110,31 @@ double_buffer_status_e double_buffer_read(double_buffer_t* p_buffer,
     {
         return DOUBLE_BUFFER_ERROR_NULL;
     }
-    if(!p_buffer->has_new_data)
+
+    if(!p_buffer->is_initialized)
     {
-        return DOUBLE_BUFFER_NO_NEW_DATA;
+        return DOUBLE_BUFFER_ERROR_STATE;
     }
 
-    uint8_t read_index = p_buffer->read_index;
-    *p_out = p_buffer->slots[read_index];
-    p_buffer->has_new_data = false;
+    double_buffer_status_e status = DOUBLE_BUFFER_OK;
+    
+    (void)pthread_mutex_lock(&p_buffer->lock);
 
-    return DOUBLE_BUFFER_OK;
+    if(!p_buffer->has_new_data)
+    {
+        status = DOUBLE_BUFFER_NO_NEW_DATA;
+    }
+    else
+    {
+        uint8_t read_index = p_buffer->read_index;
+        *p_out = p_buffer->slots[read_index];
+        p_buffer->has_new_data = false;
+        status = DOUBLE_BUFFER_OK;
+    }
+
+    (void)pthread_mutex_unlock(&p_buffer->lock);
+
+    return status;
 }
 
 double_buffer_status_e double_buffer_set_callbacks(double_buffer_t* p_buffer,
@@ -122,6 +143,11 @@ double_buffer_status_e double_buffer_set_callbacks(double_buffer_t* p_buffer,
     if((p_buffer == NULL) || (p_callbacks == NULL))
     {
         return DOUBLE_BUFFER_ERROR_NULL;
+    }
+
+    if(!p_buffer->is_initialized)
+    {
+        return DOUBLE_BUFFER_ERROR_STATE;
     }
 
     p_buffer->callbacks = *p_callbacks;

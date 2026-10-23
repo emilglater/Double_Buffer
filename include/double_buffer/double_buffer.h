@@ -42,7 +42,8 @@ typedef struct
  * @param   p_buffer A pointer to a double_buffer_t.
  * @returns A value from @ref double_buffer_status_e.
  * @retval  DOUBLE_BUFFER_OK            Buffer initialized successfully.
- * @retval  DOUBLE_BUFFER_ENRROR_NULL   p_buffer is NULL.
+ * @retval  DOUBLE_BUFFER_ERROR_NULL    p_buffer is NULL.
+ * @retval  DOUBLE_BUFFER_ERROR_STATE   Mutex initialization failed.
  */
 double_buffer_status_e double_buffer_init(double_buffer_t* p_buffer);
 
@@ -55,6 +56,7 @@ double_buffer_status_e double_buffer_init(double_buffer_t* p_buffer);
  * @returns A value from @ref double_buffer_status_e.
  * @retval  DOUBLE_BUFFER_OK            Buffer deinitialized successfully.
  * @retval  DOUBLE_BUFFER_ENRROR_NULL   p_buffer is NULL.
+ * @retval  DOUBLE_BUFFER_ERROR_STATE   Mutex destruction failed.
  */
 double_buffer_status_e double_buffer_deinit(double_buffer_t* p_buffer);
 
@@ -69,6 +71,7 @@ double_buffer_status_e double_buffer_deinit(double_buffer_t* p_buffer);
  * @returns A value from @ref double_buffer_status_e.
  * @retval  DOUBLE_BUFFER_OK            Slot returned through pp_out successfully.
  * @retval  DOUBLE_BUFFER_ERROR_NULL    p_buffer or pp_out is NULL.
+ * @retval  DOUBLE_BUFFER_ERROR_STATE   p_buffer is not initialized.
  * @note    Producer only.
  */
 double_buffer_status_e double_buffer_acquire_write(double_buffer_t* p_buffer,
@@ -86,6 +89,7 @@ double_buffer_status_e double_buffer_acquire_write(double_buffer_t* p_buffer,
  * @returns A value from @ref double_buffer_status_e.
  * @retval  DOUBLE_BUFFER_OK            Record published successfully.
  * @retval  DOUBLE_BUFFER_ERROR_NULL    p_buffer is NULL.
+ * @retval  DOUBLE_BUFFER_ERROR_STATE   p_buffer is not initialized.
  * @note    Producer only.
  * 
  *          If the buffer's callbacks.on_data_ready is set, it will be invoked
@@ -104,6 +108,7 @@ double_buffer_status_e double_buffer_commit(double_buffer_t* p_buffer);
  * @retval  DOUBLE_BUFFER_OK            Record copied successfully.
  * @retval  DOUBLE_BUFFER_NO_NEW_DATA   Nothing commited since last read.
  * @retval  DOUBLE_BUFFER_ERROR_NULL    p_buffer or p_out is NULL.
+ * @retval  DOUBLE_BUFFER_ERROR_STATE   p_buffer is not initialized.
  * @note    Consumer only.
  */
 double_buffer_status_e double_buffer_read(double_buffer_t* p_buffer,
@@ -118,6 +123,7 @@ double_buffer_status_e double_buffer_read(double_buffer_t* p_buffer,
  * @returns A value from @ref double_buffer_status_e.
  * @retval  DOUBLE_BUFFER_OK            Callbacks set successfully.
  * @retval  DOUBLE_BUFFER_ERROR_NULL    p_buffer or p_callbacks is NULL.
+ * @retval  DOUBLE_BUFFER_ERROR_STATE   p_buffer is not initialized.
  * @warning The functions must not call back into the same buffer, as a deadlock
  *          may occur.
  */
