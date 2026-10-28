@@ -53,6 +53,21 @@ static void register_mock_callbacks(void)
     TEST_ASSERT_EQUAL_INT(DOUBLE_BUFFER_OK, status);
 }
 
+static void check_initialization_flag_local_buffer(double_buffer_t* p_buffer,
+    int return_status)
+{
+    double_buffer_slot_u* p_slot = NULL;
+    double_buffer_slot_u slot_out = { 0 };
+    double_buffer_status_e status = DOUBLE_BUFFER_OK;
+
+    status = double_buffer_acquire_write(p_buffer, &p_slot);
+    TEST_ASSERT_EQUAL_INT(return_status, status);
+    status = double_buffer_commit(p_buffer);
+    TEST_ASSERT_EQUAL_INT(return_status, status);
+    status = double_buffer_read(p_buffer, &slot_out);
+    TEST_ASSERT_EQUAL_INT(return_status, status);
+}
+
 void setUp(void)
 {
     (void)double_buffer_init(&g_double_buffer);
@@ -61,6 +76,7 @@ void setUp(void)
 
 void tearDown(void)
 {
+    (void)double_buffer_deinit(&g_double_buffer);
 }
 
 void test_header_is_first_in_payload(void)
@@ -179,6 +195,8 @@ void test_null_arguments_are_rejected(void)
     double_buffer_status_e status = DOUBLE_BUFFER_OK;
 
     status = double_buffer_init(NULL);
+    TEST_ASSERT_EQUAL_INT(DOUBLE_BUFFER_ERROR_NULL, status);
+    status = double_buffer_deinit(NULL);
     TEST_ASSERT_EQUAL_INT(DOUBLE_BUFFER_ERROR_NULL, status);
     status = double_buffer_acquire_write(NULL, &p_slot);
     TEST_ASSERT_EQUAL_INT(DOUBLE_BUFFER_ERROR_NULL, status);
@@ -343,4 +361,33 @@ void test_init_clears_callbacks(void)
 
     publish_scalar(24.5F);
     TEST_ASSERT_EQUAL_UINT16(0U, g_callback_record.invoke_count);
+}
+
+void test_buffer_deinitialization(void)
+{
+    double_buffer_status_e status = DOUBLE_BUFFER_OK;
+
+    TEST_ASSERT_TRUE(g_double_buffer.is_initialized);
+
+    status = double_buffer_deinit(&g_double_buffer);
+    TEST_ASSERT_EQUAL_INT(DOUBLE_BUFFER_OK, status);
+    TEST_ASSERT_FALSE(g_double_buffer.is_initialized);
+}
+
+void test_is_initialized_flag_guard(void)
+{
+    double_buffer_t buffer = { 0 };
+    double_buffer_status_e status = DOUBLE_BUFFER_OK;
+
+    check_initialization_flag_local_buffer(&buffer, DOUBLE_BUFFER_ERROR_STATE);
+
+    status = double_buffer_init(&buffer);
+    TEST_ASSERT_EQUAL_INT(DOUBLE_BUFFER_OK, status);
+
+    check_initialization_flag_local_buffer(&buffer, DOUBLE_BUFFER_OK);
+
+    status = double_buffer_deinit(&buffer);
+    TEST_ASSERT_EQUAL_INT(DOUBLE_BUFFER_OK, status);
+
+    check_initialization_flag_local_buffer(&buffer, DOUBLE_BUFFER_ERROR_STATE);
 }
