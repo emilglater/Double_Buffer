@@ -6,10 +6,12 @@
 #include "unity.h"
 
 TEST_SOURCE_FILE("src/double_buffer/double_buffer.c")
+TEST_SOURCE_FILE("src/time_port/time_port.c")
 
 typedef struct
 {
     uint16_t    invoke_count;
+    uint16_t    write_failed_count;
 } callback_record_t;
 
 static double_buffer_t g_double_buffer = { 0 };
@@ -40,11 +42,22 @@ static void on_data_ready_mock(void* p_user_data)
     }
 }
 
+static void on_write_failed_mock(void* p_user_data)
+{
+    callback_record_t* p_record = (callback_record_t*)p_user_data;
+
+    if(p_record != NULL)
+    {
+        p_record->write_failed_count++;
+    }
+}
+
 static void register_mock_callbacks(void)
 {
     const double_buffer_callbacks_t callbacks =
     {
         .on_data_ready = on_data_ready_mock,
+        .on_write_failed = on_write_failed_mock,
         .p_user_data = &g_callback_record
     };
     double_buffer_status_e status = DOUBLE_BUFFER_OK;
@@ -54,7 +67,7 @@ static void register_mock_callbacks(void)
 }
 
 static void check_initialization_flag_local_buffer(double_buffer_t* p_buffer,
-    int return_status)
+    double_buffer_status_e return_status)
 {
     double_buffer_slot_u* p_slot = NULL;
     double_buffer_slot_u slot_out = { 0 };
@@ -72,6 +85,7 @@ void setUp(void)
 {
     (void)double_buffer_init(&g_double_buffer);
     g_callback_record.invoke_count = 0;
+    g_callback_record.write_failed_count = 0;
 }
 
 void tearDown(void)
@@ -211,6 +225,12 @@ void test_null_arguments_are_rejected(void)
     status = double_buffer_set_callbacks(NULL, &g_double_buffer.callbacks);
     TEST_ASSERT_EQUAL_INT(DOUBLE_BUFFER_ERROR_NULL, status);
     status = double_buffer_set_callbacks(&g_double_buffer, NULL);
+    TEST_ASSERT_EQUAL_INT(DOUBLE_BUFFER_ERROR_NULL, status);
+    status = double_buffer_abort_write(NULL);
+    TEST_ASSERT_EQUAL_INT(DOUBLE_BUFFER_ERROR_NULL, status);
+    status = double_buffer_set_write_timeout_us(NULL, 1000U);
+    TEST_ASSERT_EQUAL_INT(DOUBLE_BUFFER_ERROR_NULL, status);
+    status = double_buffer_check_write_timeout(NULL);
     TEST_ASSERT_EQUAL_INT(DOUBLE_BUFFER_ERROR_NULL, status);
 }
 
@@ -390,4 +410,75 @@ void test_is_initialized_flag_guard(void)
     TEST_ASSERT_EQUAL_INT(DOUBLE_BUFFER_OK, status);
 
     check_initialization_flag_local_buffer(&buffer, DOUBLE_BUFFER_ERROR_STATE);
+}
+
+void test_abort_write_publishes_nothing(void)
+{
+    double_buffer_slot_u* p_slot = NULL;
+    double_buffer_slot_u out_slot = { 0 };
+    double_buffer_status_e status = DOUBLE_BUFFER_OK;
+
+    status = double_buffer_acquire_write(&g_double_buffer, &p_slot);
+    TEST_ASSERT_EQUAL_INT(DOUBLE_BUFFER_OK, status);
+
+    p_slot->scalar.header.kind = (uint16_t)DOUBLE_BUFFER_KIND_SCALAR;
+    p_slot->scalar.value = 24.5F;
+
+    status = double_buffer_abort_write(&g_double_buffer);
+    TEST_ASSERT_EQUAL_INT(DOUBLE_BUFFER_OK, status);
+
+    status = double_buffer_read(&g_double_buffer, &out_slot);
+    TEST_ASSERT_EQUAL_INT(DOUBLE_BUFFER_NO_NEW_DATA, status);
+}
+
+void test_abort_write_fires_callback(void)
+{
+    double_buffer_slot_u* p_slot = NULL;
+    double_buffer_status_e status = DOUBLE_BUFFER_OK;
+
+    register_mock_callbacks();
+
+    status = double_buffer_acquire_write(&g_double_buffer, &p_slot);
+    TEST_ASSERT_EQUAL_INT(DOUBLE_BUFFER_OK, status);
+
+    status = double_buffer_abort_write(&g_double_buffer);
+    TEST_ASSERT_EQUAL_INT(DOUBLE_BUFFER_OK, status);
+
+    TEST_ASSERT_EQUAL_UINT16(1U, g_callback_record. write_failed_count);
+    TEST_ASSERT_EQUAL_UINT16(0U, g_callback_record.invoke_count);
+}
+
+void test_abort_write_does_not_swap_slots(void)
+{
+    double_buffer_slot_u* p_first = NULL;
+    double_buffer_slot_u* p_second = NULL;
+    double_buffer_status_e status = DOUBLE_BUFFER_OK;
+
+    status = double_buffer_acquire_write(&g_double_buffer, &p_first);
+    TEST_ASSERT_EQUAL_INT(DOUBLE_BUFFER_OK, status);
+
+    status = double_buffer_abort_write(&g_double_buffer);
+    TEST_ASSERT_EQUAL_INT(DOUBLE_BUFFER_OK, status);
+
+    status = double_buffer_acquire_write(&g_double_buffer, &p_second);
+    TEST_ASSERT_EQUAL(p_first, p_second);
+}
+
+void test_abort_write_keeps_previous_record_readable(void)
+{
+    double_buffer_slot_u* p_slot = NULL;
+    double_buffer_slot_u out_slot = { 0 };
+    double_buffer_status_e status = DOUBLE_BUFFER_OK;
+
+    publish_scalar(24.5F);
+
+    status = double_buffer_acquire_write(&g_double_buffer, &p_slot);
+    TEST_ASSERT_EQUAL_INT(DOUBLE_BUFFER_OK, status);
+
+    status = double_buffer_abort_write(&g_double_buffer);
+    TEST_ASSERT_EQUAL_INT(DOUBLE_BUFFER_OK, status);
+
+    status = double_buffer_read(&g_double_buffer, &out_slot);
+    TEST_ASSERT_EQUAL_INT(DOUBLE_BUFFER_OK, status);
+    TEST_ASSERT_EQUAL_FLOAT(24.5F, out_slot.scalar.value);
 }

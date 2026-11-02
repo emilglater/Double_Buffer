@@ -13,6 +13,8 @@
 #define DEMO_NS_IN_MS           (1000000L)
 #define DEMO_ITERATIONS         ((DEMO_LENGTH_SECONDS * DEMO_MS_IN_SECOND) / \
                                  DEMO_PRODUCER_PERIOD_MS)
+#define DEMO_WRITE_TIMEOUT_US   (200000U)
+#define DEMO_ABORT_EVERY        (50U)
 
 typedef struct
 {
@@ -20,6 +22,8 @@ typedef struct
     uint32_t    consumed_count;
     uint32_t    dropped_count;
     uint32_t    corrupted_count;
+    uint32_t    aborted_count;
+    uint32_t    write_failed_count;
 } demo_stats_t;
 
 static double_buffer_t g_buffer = { 0 };
@@ -34,7 +38,7 @@ static void demo_sleep_ms(uint32_t milliseconds)
 {
     const uint32_t whole_seconds = milliseconds / DEMO_MS_IN_SECOND;
     const uint32_t remainder_ms = milliseconds % DEMO_MS_IN_SECOND;
-    struct timespec request;
+    struct timespec request = { 0 };
 
     request.tv_sec = (time_t)whole_seconds;
     request.tv_nsec = (long)remainder_ms * DEMO_NS_IN_MS;
@@ -50,6 +54,13 @@ static void on_data_ready(void* p_user_data)
     g_is_data_pending = true;
     (void)pthread_cond_signal(&g_signal_cond);
     (void)pthread_mutex_unlock(&g_signal_lock);
+}
+
+static void on_write_failed(void* p_user_data)
+{
+    (void)p_user_data;
+
+    g_stats.write_failed_count++;
 }
 
 static void* producer_thread(void* p_arg)
@@ -70,9 +81,21 @@ static void* producer_thread(void* p_arg)
         else
         {
             p_slot->scalar.header.kind = (uint16_t)DOUBLE_BUFFER_KIND_SCALAR;
-            p_slot->scalar.value = (float)i;
-    
-            if(double_buffer_commit(&g_buffer) != DOUBLE_BUFFER_OK)
+            p_slot->scalar.value = (float)g_stats.published_count;
+
+            if(((i + 1U) % DEMO_ABORT_EVERY) == 0U)
+            {
+                if(double_buffer_abort_write(&g_buffer) != DOUBLE_BUFFER_OK)
+                {
+                    is_valid = false;
+                }
+                else
+                {
+                    g_stats.aborted_count++;
+                    demo_sleep_ms(DEMO_PRODUCER_PERIOD_MS);
+                }
+            }
+            else if(double_buffer_commit(&g_buffer) != DOUBLE_BUFFER_OK)
             {
                 is_valid = false;
             }
@@ -113,6 +136,8 @@ static void* consumer_thread(void* p_arg)
         is_running = !g_is_stopping;
         (void)pthread_mutex_unlock(&g_signal_lock);
 
+        (void)double_buffer_check_write_timeout(&g_buffer);
+
         if(double_buffer_read(&g_buffer, &slot) == DOUBLE_BUFFER_OK)
         {
             const double_buffer_kind_e kind =
@@ -147,7 +172,11 @@ int main(void)
 {
     pthread_t producer;
     pthread_t consumer;
-    const double_buffer_callbacks_t callbacks = { on_data_ready, NULL};
+    const double_buffer_callbacks_t callbacks = { 
+        .on_data_ready = on_data_ready,
+        .on_write_failed = on_write_failed,
+        .p_user_data = NULL
+    };
 
     if(double_buffer_init(&g_buffer) != DOUBLE_BUFFER_OK)
     {
@@ -158,6 +187,13 @@ int main(void)
     if(double_buffer_set_callbacks(&g_buffer,&callbacks) != DOUBLE_BUFFER_OK)
     {
         (void)printf(("Set callbacks failed\n"));
+        return 1;
+    }
+
+    if(double_buffer_set_write_timeout_us(&g_buffer, DEMO_WRITE_TIMEOUT_US) !=
+        DOUBLE_BUFFER_OK)
+    {
+        (void)printf(("Set write timeout failed\n"));
         return 1;
     }
 
@@ -176,9 +212,11 @@ int main(void)
     (void)pthread_join(producer, NULL);
     (void)pthread_join(consumer, NULL);
 
-    (void)printf("published %u, consumed %u, dropped %u, corrupted %u\n",
+    (void)printf("published %u, consumed %u, dropped %u, corrupted %u, aborted "
+        "%u, write failures reported %u\n",
         g_stats.published_count, g_stats.consumed_count,
-        g_stats.dropped_count, g_stats.corrupted_count);
+        g_stats.dropped_count, g_stats.corrupted_count,
+        g_stats.aborted_count, g_stats.write_failed_count);
 
     (void)double_buffer_deinit(&g_buffer);
 

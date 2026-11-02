@@ -1,4 +1,5 @@
 #include "double_buffer/double_buffer.h"
+#include "time_port/time_port.h"
 
 #include <stddef.h>
 #include <string.h>
@@ -12,7 +13,10 @@ double_buffer_status_e double_buffer_init(double_buffer_t* p_buffer)
 
     (void)memset(p_buffer->slots, 0, sizeof(p_buffer->slots));
     p_buffer->next_sequence_number = 0;
+    p_buffer->last_commit_time_us = time_port_get_time_us();
+    p_buffer->write_timeout_us = 0;
     p_buffer->has_new_data = false;
+    p_buffer->is_timeout_reported = false;
     p_buffer->write_index = 0;
     p_buffer->read_index = 1;
     (void)memset(&p_buffer->callbacks, 0, sizeof(p_buffer->callbacks));
@@ -83,15 +87,20 @@ double_buffer_status_e double_buffer_commit(double_buffer_t* p_buffer)
         return DOUBLE_BUFFER_ERROR_STATE;
     }
 
+    uint32_t current_time_us = time_port_get_time_us();
+
     (void)pthread_mutex_lock(&p_buffer->lock);
 
     const uint8_t write_index = p_buffer->write_index;
     const double_buffer_callbacks_t callbacks = p_buffer->callbacks;
     p_buffer->slots[write_index].header.sequence_number = p_buffer->next_sequence_number;
     p_buffer->next_sequence_number++;
+    p_buffer->slots[write_index].header.timestamp_us = current_time_us;
+    p_buffer->last_commit_time_us = current_time_us;
     p_buffer->write_index = p_buffer->read_index;
     p_buffer->read_index = write_index;
     p_buffer->has_new_data = true;
+    p_buffer->is_timeout_reported = false;
 
     (void)pthread_mutex_unlock(&p_buffer->lock);
 
@@ -151,6 +160,94 @@ double_buffer_status_e double_buffer_set_callbacks(double_buffer_t* p_buffer,
     }
 
     p_buffer->callbacks = *p_callbacks;
+
+    return DOUBLE_BUFFER_OK;
+}
+
+double_buffer_status_e double_buffer_abort_write(double_buffer_t* p_buffer)
+{
+    if(p_buffer == NULL)
+    {
+        return DOUBLE_BUFFER_ERROR_NULL;
+    }
+
+    if(!p_buffer->is_initialized)
+    {
+        return DOUBLE_BUFFER_ERROR_STATE;
+    }
+
+    (void)pthread_mutex_lock(&p_buffer->lock);
+
+    double_buffer_callbacks_t callbacks_copy = p_buffer->callbacks;
+
+    (void)pthread_mutex_unlock(&p_buffer->lock);
+
+    if(callbacks_copy.on_write_failed != NULL)
+    {
+        callbacks_copy.on_write_failed(callbacks_copy.p_user_data);
+    }
+
+    return DOUBLE_BUFFER_OK;
+}
+
+double_buffer_status_e double_buffer_set_write_timeout_us(double_buffer_t* p_buffer,
+    uint32_t timeout_us)
+{
+    if(p_buffer == NULL)
+    {
+        return DOUBLE_BUFFER_ERROR_NULL;
+    }
+
+    if(!p_buffer->is_initialized)
+    {
+        return DOUBLE_BUFFER_ERROR_STATE;
+    }
+
+    (void)pthread_mutex_lock(&p_buffer->lock);
+
+    p_buffer->write_timeout_us = timeout_us;
+
+    (void)pthread_mutex_unlock(&p_buffer->lock);
+
+    return DOUBLE_BUFFER_OK;
+}
+
+double_buffer_status_e double_buffer_check_write_timeout(double_buffer_t* p_buffer)
+{
+    if(p_buffer == NULL)
+    {
+        return DOUBLE_BUFFER_ERROR_NULL;
+    }
+
+    if(!p_buffer->is_initialized)
+    {
+        return DOUBLE_BUFFER_ERROR_STATE;
+    }
+
+    uint32_t current_time_us = time_port_get_time_us();
+    double_buffer_callbacks_t callbacks_copy = { 0 };
+    bool is_callback_needed = false;
+
+    (void)pthread_mutex_lock(&p_buffer->lock);
+
+    if(p_buffer->write_timeout_us != 0U)
+    {
+        uint32_t interval = current_time_us - p_buffer->last_commit_time_us;
+        if((interval >= p_buffer->write_timeout_us) && 
+            (!p_buffer->is_timeout_reported))
+        {
+            callbacks_copy = p_buffer->callbacks;
+            p_buffer->is_timeout_reported = true;
+            is_callback_needed = true;
+        }
+    }
+
+    (void)pthread_mutex_unlock(&p_buffer->lock);
+
+    if(is_callback_needed)
+    {
+        callbacks_copy.on_write_failed(callbacks_copy.p_user_data);
+    }
 
     return DOUBLE_BUFFER_OK;
 }

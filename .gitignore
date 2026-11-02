@@ -4,6 +4,8 @@
 # Ignore VSCode settings folder
 .vscode/
 
+compile_commands.json
+
 # Ignore build output folders
 build/
 bin/

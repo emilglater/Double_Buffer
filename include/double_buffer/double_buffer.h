@@ -7,6 +7,7 @@
 #include "double_buffer/config.h"
 
 typedef void (*double_buffer_data_ready_fp)(void* p_user_data);
+typedef void (*double_buffer_write_failed_fp)(void* p_user_data);
 
 typedef enum
 {
@@ -18,18 +19,23 @@ typedef enum
 
 typedef struct
 {
-    double_buffer_data_ready_fp on_data_ready;
-    void*                       p_user_data;
+    double_buffer_data_ready_fp     on_data_ready;
+    double_buffer_write_failed_fp   on_write_failed;
+    void*                           p_user_data;
 } double_buffer_callbacks_t;
 
 typedef struct
 {
     double_buffer_slot_u        slots[2];
     uint32_t                    next_sequence_number;
+    uint32_t                    last_commit_time_us;
+    uint32_t                    write_timeout_us;
     bool                        has_new_data;
     bool                        is_initialized;
+    bool                        is_timeout_reported;
     uint8_t                     write_index;
     uint8_t                     read_index;
+    uint8_t                     reserved[7];
     double_buffer_callbacks_t   callbacks;
     pthread_mutex_t             lock;
 } double_buffer_t;
@@ -129,5 +135,48 @@ double_buffer_status_e double_buffer_read(double_buffer_t* p_buffer,
  */
 double_buffer_status_e double_buffer_set_callbacks(double_buffer_t* p_buffer,
     const double_buffer_callbacks_t* p_callbacks);
+
+/**
+ * @brief   Abandon the slot acquired for writing without commiting it.
+ * 
+ *          Called by the producer when it cannot complete a record.
+ * @param   p_buffer A pointer to the buffer whose write is being aborted.
+ * @returns A value from @ref double_buffer_status_e.
+ * @retval  DOUBLE_BUFFER_OK            The write was aborted.
+ * @retval  DOUBLE_BUFFER_ERROR_NULL    p_buffer is NULL.
+ * @retval  DOUBLE_BUFFER_ERROR_STATE   The buffer is not initialized.
+ */
+double_buffer_status_e double_buffer_abort_write(double_buffer_t* p_buffer);
+
+/**
+ * @brief   Set the time length until a timeout occurs.
+ * 
+ *          A timeout of 0 disables timeout checking (which is the default 
+ *          state). The timeout is measured from the last successful commit, or
+ *          from the initialization of the buffer.
+ * @param   p_buffer A pointer to the buffer to configure.
+ * @param   timeout_us The duration in microseconds, or 0 to disable.
+ * @returns A value from @ref double_buffer_status_e.
+ * @retval  DOUBLE_BUFFER_OK            The timeout was set.
+ * @retval  DOUBLE_BUFFER_ERROR_NULL    p_buffer is NULL.
+ * @retval  DOUBLE_BUFFER_ERROR_STATE   The buffer is not initialized.
+ */
+double_buffer_status_e double_buffer_set_write_timeout_us(double_buffer_t* p_buffer,
+    uint32_t timeout_us);
+
+/**
+ * @brief   Report of write failure if commit timed-out.
+ * 
+ *          Intended to be used periodically (e.g. by a scheduler of sorts).
+ *          Does nothing if timeout is set to 0.
+ * @param   p_buffer A pointer to the buffer to check.
+ * @returns A value from @ref double_buffer_status_e.
+ * @retval  DOUBLE_BUFFER_OK            The check completed.
+ * @retval  DOUBLE_BUFFER_ERROR_NULL    p_buffer is NULL.
+ * @retval  DOUBLE_BUFFER_ERROR_STATE   The buffer is not initialized.
+ */
+double_buffer_status_e double_buffer_check_write_timeout(double_buffer_t* p_buffer);
+
+
 
 #endif

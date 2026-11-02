@@ -124,7 +124,7 @@ CEEDLING := vendor/ceedling/bin/ceedling
 # ------------------------------- Make targets ------------------------------- #
 
 # Ensure workflow targets are not confused with files.
-.PHONY: all lint test build clean
+.PHONY: all lint test tsan build clean
 
 # Make lint → test → build workflow. Stop the workflow when any step fails.
 # Default make target: Run the build prerequisite.
@@ -144,10 +144,14 @@ test:
 	ruby $(CEEDLING) gcov:all
 
 # Run ThreadSanitizer
-tsan:
+tsan: | $(BIN_DIR)
 	$(CC) -std=c99 -D_GNU_SOURCE -g -fsanitize=thread -pthread \
 	      -I$(INCLUDE_DIR) -o $(BIN_DIR)/tsan.bin $(SRCS)
 	$(BIN_DIR)/tsan.bin
+
+# Run the threaded producer/consumer demo as a stress test
+stress: $(BIN_DIR)/$(TARGET)
+	$(BIN_DIR)/$(TARGET)
 
 # Build the project binary.
 build: $(BIN_DIR)/$(TARGET)
