@@ -139,7 +139,8 @@ double_buffer_status_e double_buffer_set_callbacks(double_buffer_t* p_buffer,
 /**
  * @brief   Abandon the slot acquired for writing without commiting it.
  * 
- *          Called by the producer when it cannot complete a record.
+ *          Called by the producer when it cannot complete a record. Calls
+ *          on_write_failed if defined.
  * @param   p_buffer A pointer to the buffer whose write is being aborted.
  * @returns A value from @ref double_buffer_status_e.
  * @retval  DOUBLE_BUFFER_OK            The write was aborted.

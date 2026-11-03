@@ -12,13 +12,13 @@ double_buffer_status_e double_buffer_init(double_buffer_t* p_buffer)
     }
 
     (void)memset(p_buffer->slots, 0, sizeof(p_buffer->slots));
-    p_buffer->next_sequence_number = 0;
+    p_buffer->next_sequence_number = 0U;
     p_buffer->last_commit_time_us = time_port_get_time_us();
-    p_buffer->write_timeout_us = 0;
+    p_buffer->write_timeout_us = 0U;
     p_buffer->has_new_data = false;
     p_buffer->is_timeout_reported = false;
-    p_buffer->write_index = 0;
-    p_buffer->read_index = 1;
+    p_buffer->write_index = 0U;
+    p_buffer->read_index = 1U;
     (void)memset(&p_buffer->callbacks, 0, sizeof(p_buffer->callbacks));
 
     if(!p_buffer->is_initialized)
@@ -246,7 +246,10 @@ double_buffer_status_e double_buffer_check_write_timeout(double_buffer_t* p_buff
 
     if(is_callback_needed)
     {
-        callbacks_copy.on_write_failed(callbacks_copy.p_user_data);
+        if(callbacks_copy.on_write_failed != NULL)
+        {
+            callbacks_copy.on_write_failed(callbacks_copy.p_user_data);
+        }
     }
 
     return DOUBLE_BUFFER_OK;

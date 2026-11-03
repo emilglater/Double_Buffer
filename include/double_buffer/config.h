@@ -5,7 +5,7 @@
 
 #define DOUBLE_BUFFER_BLOB_SIZE (32U)  // needs to be a multiple of 4
 
-typedef enum
+typedef enum double_buffer_kind_e
 {
     DOUBLE_BUFFER_KIND_NONE = 0,
     DOUBLE_BUFFER_KIND_SCALAR,
@@ -13,7 +13,7 @@ typedef enum
     DOUBLE_BUFFER_KIND_BLOB
 } double_buffer_kind_e;
 
-typedef struct
+typedef struct double_buffer_header_t
 {
     uint32_t timestamp_us;
     uint32_t sequence_number;
@@ -21,13 +21,13 @@ typedef struct
     uint16_t payload_len;
 } double_buffer_header_t;
 
-typedef struct
+typedef struct double_buffer_scalar_t
 {
     double_buffer_header_t  header;
     float                   value;
 } double_buffer_scalar_t;
 
-typedef struct
+typedef struct double_buffer_vector3_t
 {
     double_buffer_header_t  header;
     float                   value1;
@@ -35,13 +35,13 @@ typedef struct
     float                   value3;
 } double_buffer_vector3_t;
 
-typedef struct
+typedef struct double_buffer_blob_t
 {
     double_buffer_header_t  header;
     uint8_t                 payload[DOUBLE_BUFFER_BLOB_SIZE];
 } double_buffer_blob_t;
 
-typedef union
+typedef union double_buffer_slot_u
 {
     double_buffer_header_t  header;
     double_buffer_scalar_t  scalar;
